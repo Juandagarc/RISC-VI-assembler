@@ -1,0 +1,77 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Editores / IDEs
+.idea/
+.vscode/
+*.code-workspace
+
+# CLion / CMake (si usas CMake en otros entornos)
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+CMakeScripts/
+Testing/
+CTestTestfile.cmake
+cmake_install.cmake
+# Nota: no ignorar el Makefile del proyecto
+
+# Compilación C/C++
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.pdb
+*.exp
+*.map
+*.dSYM/
+
+# Flex/Bison generados
+lex.yy.c
+parser.tab.c
+parser.tab.h
+parser.output
+y.tab.c
+y.tab.h
+y.output
+
+# Binarios locales
+assembler
+
+# Cobertura
+*.gcda
+*.gcno
+*.gcov
+
+# Logs y temporales
+*.log
+*.tmp
+*.temp
+*.bak
+*~
+*.swp
+*.swo
+
+# Caches
+.cache/
+.clangd/
+clangd/
+compile_commands.json
+
+# Etiquetas
+tags
+TAGS
+
