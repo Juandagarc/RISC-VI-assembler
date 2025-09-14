@@ -1,6 +1,7 @@
 %{
 #include <stdlib.h>
 #include <stdio.h>
+#include "symbol_table.h"
 
 /* Prototype function for lexycal analysis */
 int yylex();
@@ -34,14 +35,22 @@ line:
 instruction:
     T_INSTRUCTION T_REGISTER T_COMMA T_REGISTER
     {
+        add_symb_tab($1, INSTRUCTION, 0);
+        add_symb_tab($2, REGISTER, 0);
+        add_symb_tab($4, REGISTER, 0);
         printf("Instruction: %s %s, %s\n", $1, $2, $4);
     }
     | T_INSTRUCTION T_REGISTER T_COMMA T_USETAG
     {
+        add_symb_tab($1, INSTRUCTION, 0);
+        add_symb_tab($2, REGISTER, 0);
+        add_symb_tab($4, LABEL, 0);
         printf("Instruction: %s %s, %s\n", $1, $2, $4);
     }
     | T_INSTRUCTION T_REGISTER
     {
+        add_symb_tab($1, INSTRUCTION, 0);
+        add_symb_tab($2, REGISTER, 0);
         printf("Instruction: %s %s\n", $1, $2);
     };
 %%
@@ -61,6 +70,7 @@ int main(void) {
     printf("Iniciando análisis sintáctico...\n");
     yyparse();
     printf("Análisis finalizado.\n");
+    print_table();
     fclose(f);
     return 0;
 }
