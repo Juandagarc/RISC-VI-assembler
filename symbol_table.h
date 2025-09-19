@@ -5,11 +5,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_SIZE 300
+#define MAX_SIZE 3000
 
 typedef enum { // Create a enumarate for most easiest variable declarations
     LABEL,
-    INSTRUCTION,
+    R_INSTRUCTION,
+    I_INSTRUCTION,
+    S_INSTRUCTION,
+    B_INSTRUCTION,
+    U_INSTRUCTION,
     REGISTER,
     IMMEDIATE
 } Symbol_type;
@@ -25,16 +29,30 @@ static int symbol_count = 0;
 
 extern void yyerror(const char* s);
 
+/****************************************************/
+/*             SYMBOL TABLE Functions               */
+/****************************************************/
+
+int check_symbol_table_full(){
+    return symbol_count >= MAX_SIZE;
+}
+
+int is_duplicate(const char *name){
+    for (int i = 0; i < symbol_count; i++){
+        if (strcmp(symbols_table[i].name, name) == 0){
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int add_symb_tab(const char *name, Symbol_type type, int value){
-    if (symbol_count >= MAX_SIZE){ // Check that the user try to add more than the capacity of the table
+    if (check_symbol_table_full()){ // Check that the user try to add more than the capacity of the table
         yyerror("Out of memory\n");
         return -1;
     };
-    for (int i = 0; i < symbol_count; i++){ // If the symbol exist, return the position
-        if (strcmp(symbols_table[i].name, name) == 0){
-            return i;
-        }
-    };
+    is_duplicate(name); // Check if the symbol already exists
+
     // Create new symbol
     strncpy(symbols_table[symbol_count].name, name, 31);
     symbols_table[symbol_count].name[31] = '\0';
@@ -53,7 +71,7 @@ int find_symbols(const char *name){
 };
 
 void print_table(){
-    char *types[] = {"LABEL", "INSTRUCTION", "REGISTER", "IMMEDIATE"};
+    char *types[] = {"LABEL", "R_INSTRUCTION", "I_INSTRUCTION", "S_INSTRUCTION", "B_INSTRUCTION", "U_INSTRUCTION", "REGISTER", "IMMEDIATE"};
     printf("\n=== SYMBOL TABLE ===\n");
     printf("NAME\t\tTYPE\t\tVALUE\n");
     printf("----------------------------------\n");
@@ -66,4 +84,4 @@ void print_table(){
     printf("----------------------------------\n\n");
 }
 
-#endif 
+#endif
