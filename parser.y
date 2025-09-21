@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "symbol_table.h"
+#include "decoder.h"
 
 /* Prototype function for lexycal analysis */
 int yylex();
@@ -41,67 +42,52 @@ instruction:
     R_T_INSTRUCTION T_REGISTER T_COMMA T_REGISTER T_COMMA T_REGISTER
     {
         printf("Type R \n" );
-        add_symb_tab($1, R_INSTRUCTION, 0);
-        add_symb_tab($2, REGISTER, 0);
-        add_symb_tab($4, REGISTER, 0);
-        add_symb_tab($6, REGISTER, 0);
+        add_symb_tab($1, R_INSTRUCTION,  $2, $4, $6, 0);
         printf("Instruction: %s %s, %s, %s\n", $1, $2, $4, $6);
     }
     | I_T_INSTRUCTION T_REGISTER T_COMMA T_REGISTER T_COMMA T_IMMEDIATE
         {
             printf("Type I \n" );
-            add_symb_tab($1, I_INSTRUCTION, 0);
-            add_symb_tab($2, REGISTER, 0);
-            add_symb_tab($4, REGISTER, 0);
             /* store immediate as symbol with its numeric value */
             long imm = strtol($6, NULL, 0);
             char imm_buf[32];
             snprintf(imm_buf, sizeof imm_buf, "%ld", imm);
-            add_symb_tab(imm_buf, IMMEDIATE, (int)imm);
+            add_symb_tab($1, I_INSTRUCTION, $2, $4, "", (int)imm);
             printf("Instruction: %s %s, %s, %ld\n", $1, $2, $4, imm);
         }
     | S_T_INSTRUCTION T_REGISTER T_COMMA T_REGISTER T_COMMA T_IMMEDIATE
         {
             printf("Type S \n" );
-            add_symb_tab($1, S_INSTRUCTION, 0);
-            add_symb_tab($2, REGISTER, 0); /* rs2 */
-            add_symb_tab($4, REGISTER, 0); /* rs1 */
+            
             long imm = strtol($6, NULL, 0);
             char imm_buf[32];
             snprintf(imm_buf, sizeof imm_buf, "%ld", imm);
-            add_symb_tab(imm_buf, IMMEDIATE, (int)imm);
+            add_symb_tab($1, S_INSTRUCTION, "", $2, $4, (int)imm);
             printf("Instruction: %s %s, %s, %ld\n", $1, $2, $4, imm);
         }
     | B_T_INSTRUCTION T_REGISTER T_COMMA T_REGISTER T_COMMA T_USETAG
         {
             printf("Type B (label) \n" );
-            add_symb_tab($1, B_INSTRUCTION, 0);
-            add_symb_tab($2, REGISTER, 0);
-            add_symb_tab($4, REGISTER, 0);
-            add_symb_tab($6, LABEL, 0);
+            add_symb_tab($1, B_INSTRUCTION, "", $2, $4, 0);
+            add_symb_tab($6, LABEL, "", "", "", 0);
             printf("Instruction: %s %s, %s, %s\n", $1, $2, $4, $6);
         }
     | B_T_INSTRUCTION T_REGISTER T_COMMA T_REGISTER T_COMMA T_IMMEDIATE
         {
             printf("Type B (imm) \n" );
-            add_symb_tab($1, B_INSTRUCTION, 0);
-            add_symb_tab($2, REGISTER, 0);
-            add_symb_tab($4, REGISTER, 0);
             long imm = strtol($6, NULL, 0);
             char imm_buf[32];
             snprintf(imm_buf, sizeof imm_buf, "%ld", imm);
-            add_symb_tab(imm_buf, IMMEDIATE, (int)imm);
+            add_symb_tab($1, B_INSTRUCTION, "", $2, $4, (int)imm);
             printf("Instruction: %s %s, %s, %ld\n", $1, $2, $4, imm);
         }
     | U_T_INSTRUCTION T_REGISTER T_COMMA T_IMMEDIATE
         {
             printf("Type U \n" );
-            add_symb_tab($1, U_INSTRUCTION, 0);
-            add_symb_tab($2, REGISTER, 0);
             long imm = strtol($4, NULL, 0);
             char imm_buf[32];
             snprintf(imm_buf, sizeof imm_buf, "%ld", imm);
-            add_symb_tab(imm_buf, IMMEDIATE, (int)imm);
+            add_symb_tab($1, U_INSTRUCTION, $2, "", "", (int)imm);
             printf("Instruction: %s %s, %ld\n", $1, $2, imm);
         }
 %%
@@ -122,6 +108,7 @@ int main(void) {
     yyparse();
     printf("Análisis finalizado.\n");
     print_table();
+    cleanup_symbol_table();
     fclose(f);
     return 0;
 }
