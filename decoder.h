@@ -119,10 +119,13 @@ char* register_to_binary(const char* reg_name) {
     return reg_to_binary(reg_value);
 }
 
-int is_immediate_valid(int value, Symbol_type type) {
+int is_immediate_valid(int value, Symbol_type type, const char* name) {
     switch(type) {
         case I_INSTRUCTION:
         case S_INSTRUCTION:
+            if (name && (strcmp(name, "slli") == 0 || strcmp(name, "srli") == 0 || strcmp(name, "srai") == 0)) {
+                return (value >= 0 && value <= 31);
+            }
             return (value >= -2048 && value <= 2047);
             
         case B_INSTRUCTION:
@@ -137,16 +140,17 @@ int is_immediate_valid(int value, Symbol_type type) {
     }
 }
 
-char* immediate_to_binary(int value, Symbol_type type) {
-    if (!is_immediate_valid(value, type)) {
+char* immediate_to_binary(int value, Symbol_type type, const char* name) {
+    if (!is_immediate_valid(value, type, name)) {
         printf("Warning: Invalid immediate value %d for type %d\n", value, type);
         char* empty = malloc(4);
         if (empty) strcpy(empty, "---");
         return empty;
     }
     
-    int bits = (type == U_INSTRUCTION) ? 20 : 
-               (type == B_INSTRUCTION) ? 13 : 12;
+    int bits = (type == U_INSTRUCTION) ? 20 :
+               (type == B_INSTRUCTION) ? 13 :
+               (strcmp(name, "slli") == 0 || strcmp(name, "srli") == 0 || strcmp(name, "srai") == 0) ? 5 : 12;
     
     char* binary = malloc(bits + 1);
     if (!binary) {
@@ -176,6 +180,76 @@ char* immediate_to_binary(int value, Symbol_type type) {
     }
     
     return binary;
+}
+
+char* funct3_binary(const char* name) {
+    if (name == NULL || strlen(name) == 0) {
+        char* empty = malloc(4);
+        if (empty) strcpy(empty, "---");
+        return empty;
+    }
+    
+    struct {
+        const char* name;
+        const char* funct3;
+    } funct3_map[] = {
+        {"add", "000"}, {"sub", "000"}, {"sll", "001"}, {"slt", "010"},
+        {"sltu", "011"}, {"xor", "100"}, {"srl", "101"}, {"sra", "101"},
+        {"or", "110"}, {"and", "111"}, {"lb", "000"}, {"lh", "001"},
+        {"lw", "010"}, {"lbu", "100"}, {"lhu", "101"}, {"sb", "000"},
+        {"sh", "001"}, {"sw", "010"}, {"beq", "000"}, {"bne", "001"},
+        {"blt", "100"}, {"bge", "101"}, {"bltu", "110"}, {"bgeu", "111"},
+        {"addi", "000"}, {"slti", "010"}, {"sltiu", "011"}, {"xori", "100"},
+        {"ori", "110"}, {"andi", "111"}, {"slli", "001"}, {"srli", "101"},
+        {"srai", "101"}
+    };
+    
+    int map_size = sizeof(funct3_map) / sizeof(funct3_map[0]);
+    
+    for (int i = 0; i < map_size; i++) {
+        if (strcmp(funct3_map[i].name, name) == 0) {
+            char* result = malloc(4);
+            if (result) strcpy(result, funct3_map[i].funct3);
+            return result;
+        }
+    }
+    
+    char* empty = malloc(4);
+    if (empty) strcpy(empty, "---");
+    return empty;
+}
+
+char* funct7_binary(const char* name) {
+    if (name == NULL || strlen(name) == 0) {
+        char* empty = malloc(4);
+        if (empty) strcpy(empty, "---");
+        return empty;
+    }
+    
+    struct {
+        const char* name;
+        const char* funct7;
+    } funct7_map[] = {
+        {"add", "0000000"}, {"sub", "0100000"}, {"sll", "0000000"},
+        {"slt", "0000000"}, {"sltu", "0000000"}, {"xor", "0000000"},
+        {"srl", "0000000"}, {"sra", "0100000"}, {"or", "0000000"},
+        {"and", "0000000"}, {"slli", "0000000"}, {"srli", "0000000"},
+        {"srai", "0100000"}
+    };
+    
+    int map_size = sizeof(funct7_map) / sizeof(funct7_map[0]);
+    
+    for (int i = 0; i < map_size; i++) {
+        if (strcmp(funct7_map[i].name, name) == 0) {
+            char* result = malloc(8);
+            if (result) strcpy(result, funct7_map[i].funct7);
+            return result;
+        }
+    }
+    
+    char* empty = malloc(4);
+    if (empty) strcpy(empty, "---");
+    return empty;
 }
 
 #endif

@@ -16,6 +16,8 @@ typedef struct Symbol_T {
     char* rs1;
     char* rs2;
     char* imm;
+    char* funct3;
+    char* funct7;
 } Symbol_T;
 
 static Symbol_T symbols_table[MAX_SIZE];
@@ -88,7 +90,9 @@ int add_symb_tab(const char *name, Symbol_type type, char *rd, char *rs1, char *
     symbols_table[symbol_count].rd  = register_to_binary(rd);
     symbols_table[symbol_count].rs1 = register_to_binary(rs1);
     symbols_table[symbol_count].rs2 = register_to_binary(rs2);
-    symbols_table[symbol_count].imm = immediate_to_binary(value, type);
+    symbols_table[symbol_count].imm = immediate_to_binary(value, type, name);
+    symbols_table[symbol_count].funct3 = funct3_binary(name);
+    symbols_table[symbol_count].funct7 = funct7_binary(name);
 
     return symbol_count++;
 }
@@ -101,21 +105,24 @@ void print_table(){
     static const char *types[] = {"LABEL", "R_INSTRUCTION", "I_INSTRUCTION", 
                                   "S_INSTRUCTION", "B_INSTRUCTION", "U_INSTRUCTION"};
     printf("\n=== SYMBOL TABLE ===\n");
-    printf("NAME\t\tTYPE\t\tOPCODE\t\tRD\tRS1\tRS2\tIMM\n");
-    printf("---------------------------------------------------------------------------------------------\n");
+    printf("LINE\tNAME\t\tTYPE\t\tOPCODE\t\tRD\tRS1\tRS2\tFUNCT3\tFUNCT7\tIMM\n");
+    printf("-------------------------------------------------------------------------------------------------------------------\n");
     
     for (int i = 0; i < symbol_count; i++) {
-        printf("%-10s\t%-12s\t%-8s\t%-4s\t%-4s\t%-4s\t%-8s\n",
+        printf("%-5d\t%-10s\t%-12s\t%-8s\t%-4s\t%-4s\t%-4s\t%-4s\t%-4s\t%-8s\n",
+            i,
             symbols_table[i].name ? symbols_table[i].name : "NULL",
             types[symbols_table[i].type],
             symbols_table[i].opcode ? symbols_table[i].opcode : "NULL",
             symbols_table[i].rd ? symbols_table[i].rd : "---",
             symbols_table[i].rs1 ? symbols_table[i].rs1 : "---",
             symbols_table[i].rs2 ? symbols_table[i].rs2 : "---",
+            symbols_table[i].funct3 ? symbols_table[i].funct3 : "---",
+            symbols_table[i].funct7 ? symbols_table[i].funct7 : "---",
             symbols_table[i].imm ? symbols_table[i].imm : "---"
         );
     }
-    printf("--------------------------------------------------------------------------------------------\n\n");
+    printf("-------------------------------------------------------------------------------------------------------------------\n\n");
 }
 
 void cleanup_symbol_table() {
@@ -125,6 +132,8 @@ void cleanup_symbol_table() {
         free(symbols_table[i].rs1);
         free(symbols_table[i].rs2);
         free(symbols_table[i].imm);
+        free(symbols_table[i].funct3);
+        free(symbols_table[i].funct7);
     }
     symbol_count = 0;
 }
