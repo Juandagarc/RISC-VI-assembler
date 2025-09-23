@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 typedef enum {
     LABEL,
@@ -11,6 +12,7 @@ typedef enum {
     S_INSTRUCTION,
     B_INSTRUCTION,
     U_INSTRUCTION,
+    J_INSTRUCTION,
 } Symbol_type;
 
 /****************************************************/
@@ -19,42 +21,43 @@ typedef enum {
 
 const char* instruction_opcode(const char *name, Symbol_type type){
     // Arrays of opcodes for different instruction types
-    static const char* opcodes[] = {
-        "0110011", "0100011", "1100011" 
-    };
+    static const char* R_opcodes = "0110011";
+    static const char* S_opcodes = "0100011";
+    static const char* B_opcodes = "1100011";
+    static const char* J_opcodes = "1101111";
+
     static const char* I_type_opcodes[] = {
         "0000011", "0010011", "1100111"
     };
 
-    if (type != I_INSTRUCTION && type != U_INSTRUCTION){
-        printf("Extracting opcode for instruction %s type: %d\n", name, type);
-        if (type == S_INSTRUCTION || type == B_INSTRUCTION) {
-            return opcodes[type - 2];
-        }
-        return opcodes[type - 1];
+    switch(type) {
+        case R_INSTRUCTION:
+            return R_opcodes;
+        case S_INSTRUCTION:
+            return S_opcodes;
+        case B_INSTRUCTION:
+            return B_opcodes;
+        case J_INSTRUCTION:
+            return J_opcodes;
+        case I_INSTRUCTION:
+            if (strcmp(name, "jalr") == 0){
+                return I_type_opcodes[2];
+            } else if ((strcmp(name, "lw") == 0) || (strcmp(name, "lh") == 0) ||
+                       (strcmp(name, "lb") == 0) || (strcmp(name, "lhu") == 0) ||
+                       (strcmp(name, "lbu") == 0)){
+                return I_type_opcodes[0];
+            } else {
+                return I_type_opcodes[1];
+            }
+        case U_INSTRUCTION:
+            if (strcmp(name, "lui") == 0){
+                return "0110111";
+            } else {
+                return "0010111";
+            }
+        default:
+            return "0000000"; // Error
     }
-    
-    if (type == I_INSTRUCTION){
-        if (strcmp(name, "jalr") == 0){
-            return I_type_opcodes[2];
-        } else if ((strcmp(name, "lw") == 0) || (strcmp(name, "lh") == 0) || 
-                   (strcmp(name, "lb") == 0) || (strcmp(name, "lhu") == 0) || 
-                   (strcmp(name, "lbu") == 0)){
-            return I_type_opcodes[0];
-        } else {
-            return I_type_opcodes[1];
-        }
-    }
-    
-    if (type == U_INSTRUCTION){
-        if (strcmp(name, "lui") == 0){
-            return "0110111";
-        } else {
-            return "0010111";
-        }
-    }
-    
-    return "0000000"; // Error
 }
 
 int value_register(const char *name) {
@@ -88,7 +91,6 @@ char* reg_to_binary(int reg_num) {
         return NULL;
     }
     
-    // Use malloc for dynamic memory allocation
     char* binary = malloc(6);
     if (!binary) return NULL;
     
@@ -102,154 +104,149 @@ char* reg_to_binary(int reg_num) {
     return binary;
 }
 
-char* register_to_binary(const char* reg_name) {
-    if (reg_name == NULL || strlen(reg_name) == 0) {
-        char* empty = malloc(4);
-        if (empty) strcpy(empty, "---");
+char* register_to_binary(const char *name) {
+    if (name == NULL || strlen(name) == 0) {
+        char* empty = malloc(6);
+        if (empty) strcpy(empty, "00000");
         return empty;
     }
     
-    int reg_value = value_register(reg_name);
-    if (reg_value == -1) {
-        char* empty = malloc(4);
-        if (empty) strcpy(empty, "---");
-        return empty;
-    }
-    
-    return reg_to_binary(reg_value);
+    int reg_num = value_register(name);
+    return reg_to_binary(reg_num);
 }
 
-int is_immediate_valid(int value, Symbol_type type, const char* name) {
+char* immediate_to_binary(int value, Symbol_type type, const char* instruction) {
+    char* binary = malloc(33); // 32 bits + null terminator
+    if (!binary) return NULL;
+
+    binary[32] = '\0';
+
+    // Handle different immediate sizes based on instruction type
+    int bits = 12; // Default for I-type
+    uint32_t mask = 0xFFF;
+
     switch(type) {
-        case I_INSTRUCTION:
-        case S_INSTRUCTION:
-            if (name && (strcmp(name, "slli") == 0 || strcmp(name, "srli") == 0 || strcmp(name, "srai") == 0)) {
-                return (value >= 0 && value <= 31);
-            }
-            return (value >= -2048 && value <= 2047);
-            
-        case B_INSTRUCTION:
-            return (value >= -4096 && value <= 4095) && 
-                   (value % 2 == 0);
-            
         case U_INSTRUCTION:
-            return (value >= 0 && value <= 1048575);
-            
+            bits = 20;
+            mask = 0xFFFFF;
+            value = (value >> 12) & mask; // Upper 20 bits
+            break;
+        case J_INSTRUCTION:
+            bits = 20;
+            mask = 0xFFFFF;
+            break;
+        case B_INSTRUCTION:
+            bits = 12;
+            mask = 0xFFF;
+            break;
+        case S_INSTRUCTION:
+        case I_INSTRUCTION:
         default:
-            return 0;
+            bits = 12;
+            mask = 0xFFF;
+            break;
     }
-}
 
-char* immediate_to_binary(int value, Symbol_type type, const char* name) {
-    if (!is_immediate_valid(value, type, name)) {
-        printf("Warning: Invalid immediate value %d for type %d\n", value, type);
-        char* empty = malloc(4);
-        if (empty) strcpy(empty, "---");
-        return empty;
+    // Convert to binary
+    uint32_t unsigned_value = value & mask;
+    for (int i = bits - 1; i >= 0; i--) {
+        binary[bits - 1 - i] = ((unsigned_value >> i) & 1) + '0';
     }
-    
-    int bits = (type == U_INSTRUCTION) ? 20 :
-               (type == B_INSTRUCTION) ? 13 :
-               (strcmp(name, "slli") == 0 || strcmp(name, "srli") == 0 || strcmp(name, "srai") == 0) ? 5 : 12;
-    
-    char* binary = malloc(bits + 1);
-    if (!binary) {
-        char* empty = malloc(4);
-        if (empty) strcpy(empty, "---");
-        return empty;
-    }
-    
-    memset(binary, '0', bits);
-    binary[bits] = '\0';
-    
-    // 2 complement representation
-    if (value < 0) {
-        unsigned int mask = (1U << bits) - 1;
-        unsigned int uvalue = ((unsigned int)value) & mask;
-        
-        for (int i = bits - 1; i >= 0; i--) {
-            binary[i] = (uvalue & 1) + '0';
-            uvalue >>= 1;
-        }
-    } else {
-        unsigned int uvalue = (unsigned int)value;
-        for (int i = bits - 1; i >= 0; i--) {
-            binary[i] = (uvalue & 1) + '0';
-            uvalue >>= 1;
-        }
+
+    // Fill remaining bits with zeros
+    for (int i = bits; i < 32; i++) {
+        binary[i] = '0';
     }
     
     return binary;
 }
 
-char* funct3_binary(const char* name) {
-    if (name == NULL || strlen(name) == 0) {
-        char* empty = malloc(4);
-        if (empty) strcpy(empty, "---");
-        return empty;
-    }
-    
-    struct {
-        const char* name;
-        const char* funct3;
-    } funct3_map[] = {
-        {"add", "000"}, {"sub", "000"}, {"sll", "001"}, {"slt", "010"},
-        {"sltu", "011"}, {"xor", "100"}, {"srl", "101"}, {"sra", "101"},
-        {"or", "110"}, {"and", "111"}, {"lb", "000"}, {"lh", "001"},
-        {"lw", "010"}, {"lbu", "100"}, {"lhu", "101"}, {"sb", "000"},
-        {"sh", "001"}, {"sw", "010"}, {"beq", "000"}, {"bne", "001"},
-        {"blt", "100"}, {"bge", "101"}, {"bltu", "110"}, {"bgeu", "111"},
-        {"addi", "000"}, {"slti", "010"}, {"sltiu", "011"}, {"xori", "100"},
-        {"ori", "110"}, {"andi", "111"}, {"slli", "001"}, {"srli", "101"},
-        {"srai", "101"}
-    };
-    
-    int map_size = sizeof(funct3_map) / sizeof(funct3_map[0]);
-    
-    for (int i = 0; i < map_size; i++) {
-        if (strcmp(funct3_map[i].name, name) == 0) {
-            char* result = malloc(4);
-            if (result) strcpy(result, funct3_map[i].funct3);
-            return result;
-        }
-    }
-    
-    char* empty = malloc(4);
-    if (empty) strcpy(empty, "---");
-    return empty;
+const char* funct3_binary(const char* instruction) {
+    if (!instruction) return "000";
+
+    // R-type instructions
+    if (strcmp(instruction, "add") == 0 || strcmp(instruction, "sub") == 0) return "000";
+    if (strcmp(instruction, "sll") == 0) return "001";
+    if (strcmp(instruction, "slt") == 0) return "010";
+    if (strcmp(instruction, "sltu") == 0) return "011";
+    if (strcmp(instruction, "xor") == 0) return "100";
+    if (strcmp(instruction, "srl") == 0 || strcmp(instruction, "sra") == 0) return "101";
+    if (strcmp(instruction, "or") == 0) return "110";
+    if (strcmp(instruction, "and") == 0) return "111";
+
+    // I-type instructions
+    if (strcmp(instruction, "addi") == 0) return "000";
+    if (strcmp(instruction, "slti") == 0) return "010";
+    if (strcmp(instruction, "sltiu") == 0) return "011";
+    if (strcmp(instruction, "xori") == 0) return "100";
+    if (strcmp(instruction, "ori") == 0) return "110";
+    if (strcmp(instruction, "andi") == 0) return "111";
+    if (strcmp(instruction, "slli") == 0) return "001";
+    if (strcmp(instruction, "srli") == 0 || strcmp(instruction, "srai") == 0) return "101";
+
+    // Load instructions
+    if (strcmp(instruction, "lb") == 0) return "000";
+    if (strcmp(instruction, "lh") == 0) return "001";
+    if (strcmp(instruction, "lw") == 0) return "010";
+    if (strcmp(instruction, "lbu") == 0) return "100";
+    if (strcmp(instruction, "lhu") == 0) return "101";
+
+    // Store instructions
+    if (strcmp(instruction, "sb") == 0) return "000";
+    if (strcmp(instruction, "sh") == 0) return "001";
+    if (strcmp(instruction, "sw") == 0) return "010";
+
+    // Branch instructions
+    if (strcmp(instruction, "beq") == 0) return "000";
+    if (strcmp(instruction, "bne") == 0) return "001";
+    if (strcmp(instruction, "blt") == 0) return "100";
+    if (strcmp(instruction, "bge") == 0) return "101";
+    if (strcmp(instruction, "bltu") == 0) return "110";
+    if (strcmp(instruction, "bgeu") == 0) return "111";
+
+    // JALR
+    if (strcmp(instruction, "jalr") == 0) return "000";
+
+    return "000"; // Default
 }
 
-char* funct7_binary(const char* name) {
-    if (name == NULL || strlen(name) == 0) {
-        char* empty = malloc(4);
-        if (empty) strcpy(empty, "---");
-        return empty;
+const char* funct7_binary(const char* instruction) {
+    if (!instruction) return "0000000";
+
+    // Only R-type and some I-type (shift) instructions use funct7
+    if (strcmp(instruction, "sub") == 0 || strcmp(instruction, "sra") == 0 ||
+        strcmp(instruction, "srai") == 0) {
+        return "0100000";
     }
-    
-    struct {
-        const char* name;
-        const char* funct7;
-    } funct7_map[] = {
-        {"add", "0000000"}, {"sub", "0100000"}, {"sll", "0000000"},
-        {"slt", "0000000"}, {"sltu", "0000000"}, {"xor", "0000000"},
-        {"srl", "0000000"}, {"sra", "0100000"}, {"or", "0000000"},
-        {"and", "0000000"}, {"slli", "0000000"}, {"srli", "0000000"},
-        {"srai", "0100000"}
-    };
-    
-    int map_size = sizeof(funct7_map) / sizeof(funct7_map[0]);
-    
-    for (int i = 0; i < map_size; i++) {
-        if (strcmp(funct7_map[i].name, name) == 0) {
-            char* result = malloc(8);
-            if (result) strcpy(result, funct7_map[i].funct7);
-            return result;
-        }
+
+    return "0000000"; // Default for most instructions
+}
+
+// Validation functions
+int validate_immediate_range(int value, Symbol_type type, const char* instruction) {
+    switch(type) {
+        case I_INSTRUCTION:
+            return (value >= -2048 && value <= 2047);
+        case S_INSTRUCTION:
+            return (value >= -2048 && value <= 2047);
+        case B_INSTRUCTION:
+            return (value >= -4096 && value <= 4094 && (value % 2 == 0));
+        case U_INSTRUCTION:
+            return (value >= 0 && value <= 1048575); // 20 bits
+        case J_INSTRUCTION:
+            return (value >= -1048576 && value <= 1048574 && (value % 2 == 0));
+        default:
+            return 1;
     }
-    
-    char* empty = malloc(4);
-    if (empty) strcpy(empty, "---");
-    return empty;
+}
+
+int validate_register(const char* reg_name) {
+    return value_register(reg_name) != -1;
+}
+
+void print_error(const char* message, const char* instruction, int line_number) {
+    fprintf(stderr, "Error at line %d in instruction '%s': %s\n",
+            line_number, instruction ? instruction : "unknown", message);
 }
 
 #endif

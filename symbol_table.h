@@ -4,9 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "decoder.h"
 
 #define MAX_SIZE 3000
+#define MAX_LABELS 1000
 
 typedef struct Symbol_T {
     char* name;          
@@ -18,10 +20,18 @@ typedef struct Symbol_T {
     char* imm;
     char* funct3;
     char* funct7;
+    int address;  /* Address where this instruction is located */
 } Symbol_T;
 
+typedef struct Label_T {
+    char* name;
+    int address;
+} Label_T;
+
 static Symbol_T symbols_table[MAX_SIZE];
+static Label_T labels_table[MAX_LABELS];
 static int symbol_count = 0;
+static int label_count = 0;
 
 extern void yyerror(const char* s);
 
@@ -71,15 +81,12 @@ int add_symb_tab(const char *name, Symbol_type type, char *rd, char *rs1, char *
         yyerror("Out of memory\n");
         return -1;
     }
-    
-    if (is_duplicate(name)) {
-        printf("Warning: Duplicate symbol %s\n", name);
-        // Decidir si permitir duplicados o no
-    }
 
     // Crear nuevo símbolo con memoria dinámica
     symbols_table[symbol_count].name = safe_strdup(name);
     symbols_table[symbol_count].type = type;
+    symbols_table[symbol_count].address = symbol_count * 4; /* Simple addressing */
+
     if (symbols_table[symbol_count].type == LABEL) {
         symbols_table[symbol_count].opcode = "";
     } else {
@@ -91,10 +98,105 @@ int add_symb_tab(const char *name, Symbol_type type, char *rd, char *rs1, char *
     symbols_table[symbol_count].rs1 = register_to_binary(rs1);
     symbols_table[symbol_count].rs2 = register_to_binary(rs2);
     symbols_table[symbol_count].imm = immediate_to_binary(value, type, name);
-    symbols_table[symbol_count].funct3 = funct3_binary(name);
-    symbols_table[symbol_count].funct7 = funct7_binary(name);
+    symbols_table[symbol_count].funct3 = safe_strdup(funct3_binary(name));
+    symbols_table[symbol_count].funct7 = safe_strdup(funct7_binary(name));
 
     return symbol_count++;
+}
+
+/****************************************************/
+/*             LABEL TABLE Functions                */
+/****************************************************/
+
+int add_label_to_table(const char* name, int address) {
+    if (label_count >= MAX_LABELS) {
+        yyerror("Too many labels");
+        return -1;
+    }
+
+    /* Check for duplicate labels */
+    for (int i = 0; i < label_count; i++) {
+        if (strcmp(labels_table[i].name, name) == 0) {
+            yyerror("Duplicate label definition");
+            return -1;
+        }
+    }
+
+    labels_table[label_count].name = safe_strdup(name);
+    labels_table[label_count].address = address;
+    label_count++;
+
+    return 0;
+}
+
+int get_label_address(const char* name) {
+    for (int i = 0; i < label_count; i++) {
+        if (strcmp(labels_table[i].name, name) == 0) {
+            return labels_table[i].address;
+        }
+    }
+    return -1; /* Label not found */
+}
+
+/****************************************************/
+/*             MACHINE CODE GENERATION              */
+/****************************************************/
+
+uint32_t generate_machine_code(int symbol_index) {
+    if (symbol_index >= symbol_count) return 0;
+
+    Symbol_T* sym = &symbols_table[symbol_index];
+    uint32_t machine_code = 0;
+
+    /* Convert binary strings to integers */
+    uint32_t opcode = 0, rd = 0, rs1 = 0, rs2 = 0, funct3 = 0, funct7 = 0;
+    int32_t imm = 0;
+
+    if (sym->opcode) opcode = strtol(sym->opcode, NULL, 2);
+    if (sym->rd) rd = strtol(sym->rd, NULL, 2);
+    if (sym->rs1) rs1 = strtol(sym->rs1, NULL, 2);
+    if (sym->rs2) rs2 = strtol(sym->rs2, NULL, 2);
+    if (sym->funct3) funct3 = strtol(sym->funct3, NULL, 2);
+    if (sym->funct7) funct7 = strtol(sym->funct7, NULL, 2);
+    if (sym->imm) imm = strtol(sym->imm, NULL, 2);
+
+    switch (sym->type) {
+        case R_INSTRUCTION:
+            machine_code = (funct7 << 25) | (rs2 << 20) | (rs1 << 15) |
+                          (funct3 << 12) | (rd << 7) | opcode;
+            break;
+
+        case I_INSTRUCTION:
+            machine_code = (imm << 20) | (rs1 << 15) | (funct3 << 12) |
+                          (rd << 7) | opcode;
+            break;
+
+        case S_INSTRUCTION:
+            machine_code = ((imm & 0xFE0) << 20) | (rs2 << 20) | (rs1 << 15) |
+                          (funct3 << 12) | ((imm & 0x1F) << 7) | opcode;
+            break;
+
+        case B_INSTRUCTION:
+            machine_code = ((imm & 0x1000) << 19) | ((imm & 0x7E0) << 20) |
+                          (rs2 << 20) | (rs1 << 15) | (funct3 << 12) |
+                          ((imm & 0x1E) << 7) | ((imm & 0x800) >> 4) | opcode;
+            break;
+
+        case U_INSTRUCTION:
+            machine_code = (imm << 12) | (rd << 7) | opcode;
+            break;
+
+        case J_INSTRUCTION:
+            machine_code = ((imm & 0x100000) << 11) | ((imm & 0x7FE) << 20) |
+                          ((imm & 0x800) << 9) | ((imm & 0xFF000)) |
+                          (rd << 7) | opcode;
+            break;
+
+        default:
+            machine_code = 0;
+    }
+
+    return machine_code;
 }
 
 int symbol_count_func(){
@@ -102,31 +204,35 @@ int symbol_count_func(){
 }
 
 void print_table(){
-    static const char *types[] = {"LABEL", "R_INSTRUCTION", "I_INSTRUCTION", 
-                                  "S_INSTRUCTION", "B_INSTRUCTION", "U_INSTRUCTION"};
     printf("\n=== SYMBOL TABLE ===\n");
-    printf("LINE\tNAME\t\tTYPE\t\tOPCODE\t\tRD\tRS1\tRS2\tFUNCT3\tFUNCT7\tIMM\n");
-    printf("-------------------------------------------------------------------------------------------------------------------\n");
-    
-    for (int i = 0; i < symbol_count; i++) {
-        printf("%-5d\t%-10s\t%-12s\t%-8s\t%-4s\t%-4s\t%-4s\t%-4s\t%-4s\t%-8s\n",
-            i,
-            symbols_table[i].name ? symbols_table[i].name : "NULL",
-            types[symbols_table[i].type],
-            symbols_table[i].opcode ? symbols_table[i].opcode : "NULL",
-            symbols_table[i].rd ? symbols_table[i].rd : "---",
-            symbols_table[i].rs1 ? symbols_table[i].rs1 : "---",
-            symbols_table[i].rs2 ? symbols_table[i].rs2 : "---",
-            symbols_table[i].funct3 ? symbols_table[i].funct3 : "---",
-            symbols_table[i].funct7 ? symbols_table[i].funct7 : "---",
-            symbols_table[i].imm ? symbols_table[i].imm : "---"
-        );
+    printf("%-15s %-10s %-10s %-8s %-8s %-8s %-12s %-8s %-8s\n",
+           "Name", "Type", "Opcode", "rd", "rs1", "rs2", "Immediate", "funct3", "funct7");
+    printf("---------------------------------------------------------------------------------\n");
+
+    for(int i = 0; i < symbol_count; i++){
+        printf("%-15s %-10d %-10s %-8s %-8s %-8s %-12s %-8s %-8s\n",
+               symbols_table[i].name ? symbols_table[i].name : "NULL",
+               symbols_table[i].type,
+               symbols_table[i].opcode ? symbols_table[i].opcode : "NULL",
+               symbols_table[i].rd ? symbols_table[i].rd : "NULL",
+               symbols_table[i].rs1 ? symbols_table[i].rs1 : "NULL",
+               symbols_table[i].rs2 ? symbols_table[i].rs2 : "NULL",
+               symbols_table[i].imm ? symbols_table[i].imm : "NULL",
+               symbols_table[i].funct3 ? symbols_table[i].funct3 : "NULL",
+               symbols_table[i].funct7 ? symbols_table[i].funct7 : "NULL");
     }
-    printf("-------------------------------------------------------------------------------------------------------------------\n\n");
+
+    printf("\n=== LABEL TABLE ===\n");
+    printf("%-15s %-10s\n", "Label", "Address");
+    printf("-------------------------\n");
+    for(int i = 0; i < label_count; i++){
+        printf("%-15s 0x%08x\n", labels_table[i].name, labels_table[i].address);
+    }
+    printf("\n");
 }
 
-void cleanup_symbol_table() {
-    for (int i = 0; i < symbol_count; i++) {
+void cleanup_symbol_table(){
+    for(int i = 0; i < symbol_count; i++){
         free(symbols_table[i].name);
         free(symbols_table[i].rd);
         free(symbols_table[i].rs1);
@@ -135,7 +241,14 @@ void cleanup_symbol_table() {
         free(symbols_table[i].funct3);
         free(symbols_table[i].funct7);
     }
+
+    for(int i = 0; i < label_count; i++){
+        free(labels_table[i].name);
+    }
+
     symbol_count = 0;
+    label_count = 0;
 }
 
 #endif
+
