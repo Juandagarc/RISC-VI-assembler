@@ -120,7 +120,7 @@ instruction:
   | S_T_INSTRUCTION T_REGISTER T_COMMA T_IMMEDIATE T_LPAREN T_REGISTER T_RPAREN {
         if (pass_number == 2) {
             long imm = strtol($4, NULL, 0);
-            add_symb_tab($1, S_INSTRUCTION, "", $2, $6, (int)imm);
+            add_symb_tab($1, S_INSTRUCTION, "", $6, $2, (int)imm);
             printf("S-type: %s %s, %ld(%s)\n", $1, $2, imm, $6);
         }
         current_address += 4;
