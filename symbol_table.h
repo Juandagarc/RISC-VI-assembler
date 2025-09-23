@@ -172,14 +172,14 @@ uint32_t generate_machine_code(int symbol_index) {
             break;
 
         case S_INSTRUCTION:
-            machine_code = ((imm & 0xFE0) << 20) | (rs2 << 20) | (rs1 << 15) |
+            machine_code = (((imm >> 5) & 0x7F) << 25) | (rs2 << 20) | (rs1 << 15) |
                           (funct3 << 12) | ((imm & 0x1F) << 7) | opcode;
             break;
 
         case B_INSTRUCTION:
-            machine_code = ((imm & 0x1000) << 19) | ((imm & 0x7E0) << 20) |
+            machine_code = (((imm >> 12) & 0x1) << 31) | (((imm >> 5)  & 0x3F) << 25) |
                           (rs2 << 20) | (rs1 << 15) | (funct3 << 12) |
-                          ((imm & 0x1E) << 7) | ((imm & 0x800) >> 4) | opcode;
+                          (((imm >> 1) & 0xF) << 8) | (((imm >> 11) & 0x1) << 7) | opcode;
             break;
 
         case U_INSTRUCTION:
@@ -204,30 +204,33 @@ int symbol_count_func(){
 }
 
 void print_table(){
-    printf("\n=== SYMBOL TABLE ===\n");
-    printf("%-15s %-10s %-10s %-8s %-8s %-8s %-12s %-8s %-8s\n",
-           "Name", "Type", "Opcode", "rd", "rs1", "rs2", "Immediate", "funct3", "funct7");
-    printf("---------------------------------------------------------------------------------\n");
-
-    for(int i = 0; i < symbol_count; i++){
-        printf("%-15s %-10d %-10s %-8s %-8s %-8s %-12s %-8s %-8s\n",
-               symbols_table[i].name ? symbols_table[i].name : "NULL",
-               symbols_table[i].type,
-               symbols_table[i].opcode ? symbols_table[i].opcode : "NULL",
-               symbols_table[i].rd ? symbols_table[i].rd : "NULL",
-               symbols_table[i].rs1 ? symbols_table[i].rs1 : "NULL",
-               symbols_table[i].rs2 ? symbols_table[i].rs2 : "NULL",
-               symbols_table[i].imm ? symbols_table[i].imm : "NULL",
-               symbols_table[i].funct3 ? symbols_table[i].funct3 : "NULL",
-               symbols_table[i].funct7 ? symbols_table[i].funct7 : "NULL");
-    }
-
     printf("\n=== LABEL TABLE ===\n");
     printf("%-15s %-10s\n", "Label", "Address");
-    printf("-------------------------\n");
+    printf("--------------------------\n");
     for(int i = 0; i < label_count; i++){
         printf("%-15s 0x%08x\n", labels_table[i].name, labels_table[i].address);
     }
+
+    printf("\n");
+
+    printf("\n=== SYMBOL TABLE ===\n");
+    printf("%-15s %-10s %-10s %-8s %-8s %-8s %-8s %-8s %-12s\n",
+           "Name", "Type", "Opcode", "rd", "rs1", "rs2", "funct3", "funct7", "Immediate");
+    printf("----------------------------------------------------------------------------------------------------------\n");
+
+    for(int i = 0; i < symbol_count; i++){
+        printf("%-15s %-10d %-10s %-8s %-8s %-8s %-8s %-8s %-12s\n",
+               symbols_table[i].name ? symbols_table[i].name : "---",
+               symbols_table[i].type,
+               symbols_table[i].opcode ? symbols_table[i].opcode : "---",
+               symbols_table[i].rd ? symbols_table[i].rd : "---",
+               symbols_table[i].rs1 ? symbols_table[i].rs1 : "---",
+               symbols_table[i].rs2 ? symbols_table[i].rs2 : "---",
+               symbols_table[i].funct3 ? symbols_table[i].funct3 : "---",
+               symbols_table[i].funct7 ? symbols_table[i].funct7 : "---",
+               symbols_table[i].imm ? symbols_table[i].imm : "---");
+    }
+
     printf("\n");
 }
 

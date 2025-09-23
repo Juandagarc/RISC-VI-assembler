@@ -86,6 +86,32 @@ int value_register(const char *name) {
     return -1;
 }
 
+// Validation functions
+int validate_immediate_range(int value, Symbol_type type, const char* instruction) {
+    switch(type) {
+        case I_INSTRUCTION:
+            if (strcmp(instruction, "slli") == 0 || strcmp(instruction, "srli") == 0 ||
+                strcmp(instruction, "srai") == 0) {
+                return (value >= 0 && value <= 31); // Shift amount
+            }
+            return (value >= -2048 && value <= 2047);
+        case S_INSTRUCTION:
+            return (value >= -2048 && value <= 2047);
+        case B_INSTRUCTION:
+            return (value >= -4096 && value <= 4094 && (value % 2 == 0));
+        case U_INSTRUCTION:
+            return (value >= 0 && value <= 1048575); // 20 bits
+        case J_INSTRUCTION:
+            return (value >= -1048576 && value <= 1048574 && (value % 2 == 0));
+        default:
+            return 0;
+    }
+}
+
+int validate_register(const char* reg_name) {
+    return value_register(reg_name) != -1;
+}
+
 char* reg_to_binary(int reg_num) {
     if (reg_num < 0 || reg_num > 31) {
         return NULL;
@@ -106,9 +132,7 @@ char* reg_to_binary(int reg_num) {
 
 char* register_to_binary(const char *name) {
     if (name == NULL || strlen(name) == 0) {
-        char* empty = malloc(6);
-        if (empty) strcpy(empty, "00000");
-        return empty;
+        return NULL;
     }
     
     int reg_num = value_register(name);
@@ -116,10 +140,10 @@ char* register_to_binary(const char *name) {
 }
 
 char* immediate_to_binary(int value, Symbol_type type, const char* instruction) {
-    char* binary = malloc(33); // 32 bits + null terminator
-    if (!binary) return NULL;
-
-    binary[32] = '\0';
+    if (!validate_immediate_range(value, type, instruction)) {
+        printf("Warning: Invalid immediate value %d for type %d\n", value, type);
+        return NULL;
+    }
 
     // Handle different immediate sizes based on instruction type
     int bits = 12; // Default for I-type
@@ -129,23 +153,37 @@ char* immediate_to_binary(int value, Symbol_type type, const char* instruction) 
         case U_INSTRUCTION:
             bits = 20;
             mask = 0xFFFFF;
-            value = (value >> 12) & mask; // Upper 20 bits
+            value >>= 12;
             break;
         case J_INSTRUCTION:
             bits = 20;
             mask = 0xFFFFF;
             break;
         case B_INSTRUCTION:
-            bits = 12;
-            mask = 0xFFF;
+            bits = 13;
+            mask = 0x1FFF;
             break;
         case S_INSTRUCTION:
         case I_INSTRUCTION:
+            if (strcmp(instruction, "slli") == 0 || strcmp(instruction, "srli") == 0 ||
+                strcmp(instruction, "srai") == 0) {
+                bits = 5; // Shift amount
+                mask = 0x1F;
+            } else {
+                bits = 12;
+                mask = 0xFFF;
+            }
+            break;
         default:
             bits = 12;
             mask = 0xFFF;
             break;
     }
+
+    char* binary = malloc(bits + 1);
+    if (!binary) return NULL;
+
+    binary[bits] = '\0';
 
     // Convert to binary
     uint32_t unsigned_value = value & mask;
@@ -153,11 +191,6 @@ char* immediate_to_binary(int value, Symbol_type type, const char* instruction) 
         binary[bits - 1 - i] = ((unsigned_value >> i) & 1) + '0';
     }
 
-    // Fill remaining bits with zeros
-    for (int i = bits; i < 32; i++) {
-        binary[i] = '0';
-    }
-    
     return binary;
 }
 
@@ -220,28 +253,6 @@ const char* funct7_binary(const char* instruction) {
     }
 
     return "0000000"; // Default for most instructions
-}
-
-// Validation functions
-int validate_immediate_range(int value, Symbol_type type, const char* instruction) {
-    switch(type) {
-        case I_INSTRUCTION:
-            return (value >= -2048 && value <= 2047);
-        case S_INSTRUCTION:
-            return (value >= -2048 && value <= 2047);
-        case B_INSTRUCTION:
-            return (value >= -4096 && value <= 4094 && (value % 2 == 0));
-        case U_INSTRUCTION:
-            return (value >= 0 && value <= 1048575); // 20 bits
-        case J_INSTRUCTION:
-            return (value >= -1048576 && value <= 1048574 && (value % 2 == 0));
-        default:
-            return 1;
-    }
-}
-
-int validate_register(const char* reg_name) {
-    return value_register(reg_name) != -1;
 }
 
 void print_error(const char* message, const char* instruction, int line_number) {
