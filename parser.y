@@ -10,12 +10,16 @@ int yylex();
 void yyerror(const char *s);
 extern FILE* yyin;
 
+/* Reinicio del estado del lexer entre pases */
+void reset_lexer_state(void);
+
 /* Global variables for two-pass assembler */
 int current_address = 0;
 int pass_number = 1;
 char* input_filename = NULL;
 char* hex_filename = NULL;
 char* bin_filename = NULL;
+int error_count = 0; /* contar errores de sintaxis */
 
 /* Function prototypes */
 void expand_pseudoinstruction(const char* pseudo, char* rd, char* rs1, char* rs2, char* imm);
@@ -48,6 +52,10 @@ void reset_for_second_pass();
 %token T_EOL
 %token T_TEXT
 %token T_DATA
+
+%locations
+%error-verbose
+%expect 3
 
 %%
 
@@ -341,6 +349,8 @@ void reset_for_second_pass() {
     current_address = 0;
     pass_number = 2;
     rewind(yyin);
+    reset_lexer_state();
+    error_count = 0; /* limpiar errores para el segundo pase */
 }
 
 void generate_output_files() {
@@ -367,17 +377,71 @@ void generate_output_files() {
     fclose(bin_file);
 }
 
-void yyerror(const char *s) { fprintf(stderr, "Error: %s\n", s); }
+/* Helper to fetch a line from a file by number (1-based). Caller must free. */
+static char* get_line_from_file(const char* path, int line_no) {
+    if (!path || line_no <= 0) return NULL;
+    FILE* f = fopen(path, "r");
+    if (!f) return NULL;
+    size_t cap = 256; size_t len = 0;
+    char* buf = (char*)malloc(cap);
+    if (!buf) { fclose(f); return NULL; }
+    int curr = 1;
+    int c;
+    while (curr <= line_no && (c = fgetc(f)) != EOF) {
+        if (curr == line_no) {
+            if (c == '\n' || c == '\r') break;
+            if (len + 1 >= cap) { cap *= 2; char* nb = (char*)realloc(buf, cap); if (!nb) { free(buf); fclose(f); return NULL; } buf = nb; }
+            buf[len++] = (char)c;
+        }
+        if (c == '\n') curr++;
+    }
+    buf[len] = '\0';
+    fclose(f);
+    return buf;
+}
+
+void yyerror(const char *s) {
+    extern YYLTYPE yylloc; /* provided by Bison when %locations */
+    error_count++;
+    int line = yylloc.first_line;
+    int col  = yylloc.first_column;
+    if (line <= 0) {
+        fprintf(stderr, "Error de sintaxis: %s\n", s ? s : "desconocido");
+        return;
+    }
+    fprintf(stderr, "%s:%d:%d: Error de sintaxis: %s\n", input_filename ? input_filename : "<stdin>", line, col > 0 ? col : 1, s ? s : "desconocido");
+    char* src = get_line_from_file(input_filename, line);
+    if (src) {
+        fprintf(stderr, "    %s\n", src);
+        int caret_pos = (col > 0 ? col : 1) - 1;
+        if (caret_pos < 0) caret_pos = 0;
+        for (int i = 0; i < caret_pos + 4; i++) fputc(i < 4 ? ' ' : ' ', stderr);
+        for (int i = 0; i < 1; i++) fputc('^', stderr);
+        fputc('\n', stderr);
+        free(src);
+    }
+}
 
 int main(int argc, char* argv[]) {
     if (argc != 4) { fprintf(stderr, "Usage: %s input.asm output.hex output.bin\n", argv[0]); return 1; }
     input_filename = argv[1]; hex_filename = argv[2]; bin_filename = argv[3];
     FILE* f = fopen(input_filename, "r"); if (!f) { perror(input_filename); return 1; }
     yyin = f;
-    printf("=== FIRST PASS ===\n"); pass_number = 1; current_address = 0; yyparse();
+    printf("=== FIRST PASS ===\n"); fflush(stdout);
+    pass_number = 1; current_address = 0; error_count = 0; if (yyparse() != 0 || error_count > 0) {
+        fprintf(stderr, "Falló el ensamblado: %d error(es) de sintaxis en el primer pase.\n", error_count);
+        fclose(f);
+        return 1;
+    }
     reset_for_second_pass();
-    printf("\n=== SECOND PASS ===\n"); yyparse();
-    printf("\n=== GENERATING OUTPUT ===\n"); generate_output_files();
+    printf("\n=== SECOND PASS ===\n"); fflush(stdout);
+    error_count = 0; if (yyparse() != 0 || error_count > 0) {
+        fprintf(stderr, "Falló el ensamblado: %d error(es) de sintaxis en el segundo pase.\n", error_count);
+        fclose(f);
+        return 1;
+    }
+    printf("\n=== GENERATING OUTPUT ===\n"); fflush(stdout);
+    generate_output_files();
     print_table(); cleanup_symbol_table(); fclose(f);
     printf("Assembly completed successfully!\n"); return 0;
 }

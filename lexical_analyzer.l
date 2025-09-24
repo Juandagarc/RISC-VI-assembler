@@ -1,12 +1,24 @@
 %{
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "parser.tab.h"
+extern int yylineno;
+extern YYLTYPE yylloc;
+static int yycolumn = 1;
+#define YY_USER_ACTION do { \
+  yylloc.first_line = yylineno; \
+  yylloc.last_line = yylineno; \
+  yylloc.first_column = yycolumn; \
+  yylloc.last_column = yycolumn + (int) yyleng - 1; \
+  yycolumn += (int) yyleng; \
+} while (0);
 %}
 
 %option noyywrap
 %option nounput
 %option noinput
+%option yylineno
 
 WS      [ \t]+
 EOL     (\r\n|\n|\r)
@@ -21,7 +33,7 @@ LABEL   [A-Za-z_][A-Za-z0-9_]*:
 "//".*               { /* ignore comments */ }
 "#".*                { /* ignore comments */ }
 {WS}                  { /* ignore whitespace */ }
-{EOL}                 { return T_EOL; }
+{EOL}                 { yycolumn = 1; return T_EOL; }
 ","                  { return T_COMMA; }
 "("                  { return T_LPAREN; }
 ")"                  { return T_RPAREN; }
@@ -64,6 +76,15 @@ nop|li|mv|not|neg|seqz|snez|sltz|sgtz|beqz|bnez|blez|bgez|bltz|bgtz|bgt|ble|bgtu
 {REGNUM}             { yylval.sValue = strdup(yytext); return T_REGISTER; }
 {ID}                 { yylval.sValue = strdup(yytext); return T_USETAG; }
 {INM}                { yylval.sValue = strdup(yytext); return T_IMMEDIATE; }
-.                    { /* ignore unknown characters */ }
+.                    { return yytext[0]; }
 
 %%
+
+void reset_lexer_state(void) {
+    yycolumn = 1;
+    yylineno = 1;
+    yylloc.first_line = 1;
+    yylloc.last_line = 1;
+    yylloc.first_column = 1;
+    yylloc.last_column = 1;
+}
