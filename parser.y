@@ -57,10 +57,15 @@ program:
   | program line
   ;
 line:
-    directive T_EOL
-  | label T_EOL
-  | instruction T_EOL
-  | T_EOL             /* Allow empty lines */
+    directive opt_eol
+  | label opt_eol
+  | instruction opt_eol
+  | T_EOL
+  ;
+
+opt_eol:
+    T_EOL
+  | /* empty */
   ;
 
 directive:

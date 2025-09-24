@@ -4,7 +4,7 @@
 FLEX   := flex
 BISON  := bison
 CC     := cc
-CFLAGS ?= -O2 -Wall -Wextra
+CFLAGS ?= -O2 -Wall -Wextra -Wno-sign-compare
 
 BIN    := assembler
 LEX    := lexical_analyzer.l

@@ -68,9 +68,8 @@ int value_register(const char *name) {
         "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9",
         "s10", "s11", "t3", "t4", "t5", "t6"
     };
-    
     if (name == NULL) return -1;
-    
+    if (strcmp(name, "fp") == 0) return 8; /* alias de s0 */
     if (name[0] != 'x') {
         for (int i = 0; i < 32; i++) {
             if (strcmp(name, reg_name[i]) == 0) {
@@ -89,6 +88,8 @@ int value_register(const char *name) {
 // Validation functions
 int validate_immediate_range(int value, Symbol_type type, const char* instruction) {
     switch(type) {
+        case R_INSTRUCTION:
+            return 1; /* No inmediato, se ignora */
         case I_INSTRUCTION:
             if (strcmp(instruction, "slli") == 0 || strcmp(instruction, "srli") == 0 ||
                 strcmp(instruction, "srai") == 0) {
@@ -140,6 +141,9 @@ char* register_to_binary(const char *name) {
 }
 
 char* immediate_to_binary(int value, Symbol_type type, const char* instruction) {
+    if (type == R_INSTRUCTION) {
+        return NULL; /* No generar campo ni warning */
+    }
     if (!validate_immediate_range(value, type, instruction)) {
         printf("Warning: Invalid immediate value %d for type %d\n", value, type);
         return NULL;
@@ -152,8 +156,7 @@ char* immediate_to_binary(int value, Symbol_type type, const char* instruction) 
     switch(type) {
         case U_INSTRUCTION:
             bits = 20;
-            mask = 0xFFFFF;
-            value >>= 12;
+            mask = 0xFFFFF; /* Se asume value ya viene en 20 bits superiores */
             break;
         case J_INSTRUCTION:
             bits = 20;
