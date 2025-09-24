@@ -5,8 +5,8 @@ Este proyecto implementa un ensamblador de dos pasadas completo para el conjunto
 ## Características Implementadas
 
 ### ✅ Arquitectura de Dos Pasadas
-- **Primera pasada**: Construye la tabla de símbolos y calcula direcciones de etiquetas
-- **Segunda pasada**: Genera el código máquina usando la tabla de símbolos
+- **Primera pasada**: En la primera pasada se lee el código en RISCV buscando la estiquetas y las directivas, guardándose en una tabla junto a su dirección.
+- **Segunda pasada**: Reiniciamos el proceso de leer el código esta vez con las instrucciones, generando una tabla con ellas y realizando las operaciones para traducirlo a lenguaje máquina.
 
 ### ✅ Soporte Completo de Instrucciones RV32I
 - **Tipo R**: add, sub, sll, slt, sltu, xor, srl, sra, or, and
@@ -106,15 +106,33 @@ end:
 ### Archivo .hex
 ```
 00000013
-006282b3
-40550333
+06400293
+00028313
+00628533
+405305b3
+0062f633
+00012403
+00812223
+00000463
+000122b7
+00008067
+
 ```
 
 ### Archivo .bin
 ```
 00000000000000000000000000010011
-00000000011000101000001010110011
-01000000010101010000001100110011
+00000110010000000000001010010011
+00000000000000101000001100010011
+00000000011000101000010100110011
+01000000010100110000010110110011
+00000000011000101111011000110011
+00000000000000010010010000000011
+00000000100000010010001000100011
+00000000000000000000010001100011
+00000000000000010010001010110111
+00000000000000001000000001100111
+
 ```
 
 ## Características Técnicas
@@ -132,6 +150,7 @@ end:
 ### Formato de Registros Soportado
 - Nombres simbólicos: `t0, t1, a0, a1, s0, s1, sp, ra, zero, etc.`
 - Notación numérica: `x0, x1, x2, ..., x31`
+- Detección de offset: offset(reg).
 
 ## Estado del Proyecto
 
