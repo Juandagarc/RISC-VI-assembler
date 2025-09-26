@@ -13,6 +13,7 @@ typedef enum {
     B_INSTRUCTION,
     U_INSTRUCTION,
     J_INSTRUCTION,
+    DATA // <-- Añade esta línea
 } Symbol_type;
 
 /****************************************************/

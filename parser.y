@@ -52,10 +52,12 @@ void reset_for_second_pass();
 %token T_EOL
 %token T_TEXT
 %token T_DATA
+%token <sValue> T_WORD
+%token <sValue> T_BYTE
 
 %locations
 %error-verbose
-%expect 3
+%expect 4
 
 %%
 
@@ -68,6 +70,7 @@ line:
     directive opt_eol
   | label opt_eol
   | instruction opt_eol
+  | data_definition opt_eol
   | T_EOL
   ;
 
@@ -78,7 +81,10 @@ opt_eol:
 
 directive:
     T_TEXT {
-            current_address = 0;
+            // Asegurar alineación de 4 bytes al cambiar a segmento de texto
+            if (current_address % 4 != 0) {
+                current_address = (current_address / 4 + 1) * 4;
+            }
             if (pass_number == 1) {
                 printf("Text segment starts at address 0x%08x\n", current_address);
             }
@@ -272,6 +278,40 @@ instruction:
     }
   ;
 
+data_definition:
+    T_WORD value_list_word
+  | T_BYTE value_list_byte
+  ;
+
+value_list_word:
+    T_IMMEDIATE {
+        if (pass_number == 2) {
+            add_data_symb(".word", (int)strtol($1, NULL, 0), 4, current_address);
+        }
+        current_address += 4; // Un word ocupa 4 bytes
+    }
+  | value_list_word T_COMMA T_IMMEDIATE {
+        if (pass_number == 2) {
+            add_data_symb(".word", (int)strtol($3, NULL, 0), 4, current_address);
+        }
+        current_address += 4;
+    }
+  ;
+
+value_list_byte:
+    T_IMMEDIATE {
+        if (pass_number == 2) {
+            add_data_symb(".byte", (int)strtol($1, NULL, 0), 1, current_address);
+        }
+        current_address += 1; // Un byte ocupa 1 byte
+    }
+  | value_list_byte T_COMMA T_IMMEDIATE {
+        if (pass_number == 2) {
+            add_data_symb(".byte", (int)strtol($3, NULL, 0), 1, current_address);
+        }
+        current_address += 1;
+    }
+  ;
 %%
 
 

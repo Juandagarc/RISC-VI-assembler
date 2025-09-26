@@ -21,6 +21,8 @@ typedef struct Symbol_T {
     char* funct3;
     char* funct7;
     int address;  /* Address where this instruction is located */
+    int value;      // <-- Añade esta línea para el valor del dato
+    int data_size;  // <-- Añade esta línea (1 para byte, 4 para word)
 } Symbol_T;
 
 typedef struct Label_T {
@@ -100,6 +102,34 @@ int add_symb_tab(const char *name, Symbol_type type, char *rd, char *rs1, char *
     symbols_table[symbol_count].imm = immediate_to_binary(value, type, name);
     symbols_table[symbol_count].funct3 = safe_strdup(funct3_binary(name));
     symbols_table[symbol_count].funct7 = safe_strdup(funct7_binary(name));
+    symbols_table[symbol_count].value = value;  // <-- Almacena el valor
+    symbols_table[symbol_count].data_size = 4;  // <-- Tamaño por defecto en bytes (puedes cambiarlo según sea necesario)
+
+    return symbol_count++;
+}
+
+// Coloca esto después de la función add_symb_tab
+int add_data_symb(const char *name, int value, int size, int address) {
+    if (check_symbol_table_full()) {
+        yyerror("Out of memory for data\n");
+        return -1;
+    }
+
+    int index = symbol_count;
+    symbols_table[index].name = safe_strdup(name);
+    symbols_table[index].type = DATA;
+    symbols_table[index].address = address;
+    symbols_table[index].value = value;
+    symbols_table[index].data_size = size;
+
+    // Importante: Pon a NULL los punteros que no se usan para evitar errores de liberación de memoria
+    symbols_table[index].opcode = NULL;
+    symbols_table[index].rd  = NULL;
+    symbols_table[index].rs1 = NULL;
+    symbols_table[index].rs2 = NULL;
+    symbols_table[index].imm = NULL;
+    symbols_table[index].funct3 = NULL;
+    symbols_table[index].funct7 = NULL;
 
     return symbol_count++;
 }
@@ -146,6 +176,14 @@ uint32_t generate_machine_code(int symbol_index) {
     if (symbol_index >= symbol_count) return 0;
 
     Symbol_T* sym = &symbols_table[symbol_index];
+
+    // Añade este bloque al inicio de la función
+    if (sym->type == DATA) {
+        // Para .word y .byte, el "código máquina" es simplemente el valor en sí.
+        // La lógica de empaquetado de bytes se manejará en la generación de archivos.
+        return (uint32_t)sym->value;
+    }
+
     uint32_t machine_code = 0;
 
     /* Convert binary strings to integers */
@@ -218,17 +256,26 @@ void print_table(){
            "Name", "Type", "Opcode", "rd", "rs1", "rs2", "funct3", "funct7", "Immediate");
     printf("----------------------------------------------------------------------------------------------------------\n");
 
+    // Dentro del bucle for de print_table
     for(int i = 0; i < symbol_count; i++){
-        printf("%-15s %-10d %-10s %-8s %-8s %-8s %-8s %-8s %-12s\n",
-               symbols_table[i].name ? symbols_table[i].name : "---",
-               symbols_table[i].type,
-               symbols_table[i].opcode ? symbols_table[i].opcode : "---",
-               symbols_table[i].rd ? symbols_table[i].rd : "---",
-               symbols_table[i].rs1 ? symbols_table[i].rs1 : "---",
-               symbols_table[i].rs2 ? symbols_table[i].rs2 : "---",
-               symbols_table[i].funct3 ? symbols_table[i].funct3 : "---",
-               symbols_table[i].funct7 ? symbols_table[i].funct7 : "---",
-               symbols_table[i].imm ? symbols_table[i].imm : "---");
+        if (symbols_table[i].type == DATA) {
+            printf("%-15s %-10d %-10s %-8s %-8s %-8s %-8s %-8s %-12d (size: %d)\n",
+                   symbols_table[i].name,
+                   symbols_table[i].type,
+                   "---", "---", "---", "---", "---", "---",
+                   symbols_table[i].value, symbols_table[i].data_size);
+        } else {
+            printf("%-15s %-10d %-10s %-8s %-8s %-8s %-8s %-8s %-12s\n",
+                   symbols_table[i].name ? symbols_table[i].name : "---",
+                   symbols_table[i].type,
+                   symbols_table[i].opcode ? symbols_table[i].opcode : "---",
+                   symbols_table[i].rd ? symbols_table[i].rd : "---",
+                   symbols_table[i].rs1 ? symbols_table[i].rs1 : "---",
+                   symbols_table[i].rs2 ? symbols_table[i].rs2 : "---",
+                   symbols_table[i].funct3 ? symbols_table[i].funct3 : "---",
+                   symbols_table[i].funct7 ? symbols_table[i].funct7 : "---",
+                   symbols_table[i].imm ? symbols_table[i].imm : "---");
+        }
     }
 
     printf("\n");
