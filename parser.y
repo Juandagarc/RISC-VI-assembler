@@ -54,6 +54,7 @@ void reset_for_second_pass();
 %token T_DATA
 %token <sValue> T_WORD
 %token <sValue> T_BYTE
+%token <sValue> T_HALF
 
 %locations
 %error-verbose
@@ -281,6 +282,7 @@ instruction:
 data_definition:
     T_WORD value_list_word
   | T_BYTE value_list_byte
+  | T_HALF value_list_half
   ;
 
 value_list_word:
@@ -310,6 +312,21 @@ value_list_byte:
             add_data_symb(".byte", (int)strtol($3, NULL, 0), 1, current_address);
         }
         current_address += 1;
+    }
+  ;
+
+value_list_half:
+    T_IMMEDIATE {
+        if (pass_number == 2) {
+            add_data_symb(".half", (int)strtol($1, NULL, 0), 2, current_address);
+        }
+        current_address += 2; // Un half ocupa 2 bytes
+    }
+  | value_list_half T_COMMA T_IMMEDIATE {
+        if (pass_number == 2) {
+            add_data_symb(".half", (int)strtol($3, NULL, 0), 2, current_address);
+        }
+        current_address += 2;
     }
   ;
 %%

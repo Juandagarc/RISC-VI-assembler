@@ -42,6 +42,7 @@ LABEL   [A-Za-z_.][A-Za-z0-9_]*:
 ".data"              { return T_DATA; }
 ".word"              { return T_WORD; }
 ".byte"              { return T_BYTE; }
+".half"              { return T_HALF; }
 
 {LABEL}              {
                        yylval.sValue = strdup(yytext);
