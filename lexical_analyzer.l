@@ -23,10 +23,10 @@ static int yycolumn = 1;
 WS      [ \t]+
 EOL     (\r\n|\n|\r)
 DIGIT   [0-9]
-ID      [A-Za-z_][A-Za-z0-9_]*
+ID      [A-Za-z_.][A-Za-z0-9_]*
 REGNUM  (x([0-9]|1[0-9]|2[0-9]|3[0-1])|zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7]|fp)
 INM     (-?0[xX][0-9a-fA-F]+)|(-?[0-9]+)
-LABEL   [A-Za-z_][A-Za-z0-9_]*:
+LABEL   [A-Za-z_.][A-Za-z0-9_]*:
 
 %%
 
